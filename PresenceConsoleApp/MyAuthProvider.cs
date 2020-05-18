@@ -15,27 +15,34 @@ namespace PresenceConsoleApp
 
         public MyAuthProvider(string appId, string tenantId, string clientSecret)
         {
-            //AuthenticationResult authResult = null;
+            AuthenticationResult authenticationResult = null;
 
             clientApp = ConfidentialClientApplicationBuilder.Create(appId)
                .WithAuthority(AzureCloudInstance.AzurePublic, tenantId)
                .WithClientSecret(clientSecret)
-               .Build();                       
-        }
-            
+               .Build();
 
-            
-            //try
-            //{
-            //    authResult = await clientApp.AcquireTokenForClient(scopes)
-            //        .ExecuteAsync();
-            //    Console.WriteLine(authResult);
-            //}
-            //catch (Exception e)
-            //{
-            //    Console.WriteLine(e);
-            //    throw;
-            //}
+            //var tes = clientApp.AcquireTokenForClientAsync(_scopes);
+        }
+
+
+        //string[] scopes = new string[] { "api://2231e7a1-bcd0-4755-b6a3-dfb668b15ebb/.default" };
+
+        //AuthenticationResult authenticationResult = null;
+        //authenticationResult = await app.AcquireTokenForClientAsync(scopes);
+
+
+        //try
+        //{
+        //    authResult = await clientApp.AcquireTokenForClient(scopes)
+        //        .ExecuteAsync();
+        //    Console.WriteLine(authResult);
+        //}
+        //catch (Exception e)
+        //{
+        //    Console.WriteLine(e);
+        //    throw;
+        //}
         public async Task<string> GetAccessToken()
         {
             // If there is no saved user account, the user must sign-in
