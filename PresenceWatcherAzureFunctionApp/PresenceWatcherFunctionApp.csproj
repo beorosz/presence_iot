@@ -6,6 +6,8 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Azure.WebJobs.Extensions.Storage" Version="3.0.4" />
     <PackageReference Include="Microsoft.NET.Sdk.Functions" Version="1.0.31" />
+    <PackageReference Include="Microsoft.Graph.Beta" Version="0.17.0-preview" />
+    <PackageReference Include="Microsoft.Identity.Client" Version="4.13.0" />
   </ItemGroup>
   <ItemGroup>
     <None Update="host.json">
