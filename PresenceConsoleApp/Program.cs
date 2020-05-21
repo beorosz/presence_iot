@@ -19,9 +19,15 @@ namespace PresenceConsoleApp {
       var appId = appConfig["appId"];
       var scopesString = appConfig["scopes"];
       var tenantId = appConfig["tenantId"];
-      // var clientSecret = appConfig["clientSecret"];
       var scopes = scopesString.Split (';');
+      var authProvider = new DeviceCodeAuthProvider (appId, tenantId, scopes);
+
+      GraphHelper.Initialize (authProvider);
+
       GpioController controller = new GpioController ();
+      controller.OpenPin (redPin, PinMode.Output);
+      controller.OpenPin (greenPin, PinMode.Output);
+      controller.OpenPin (bluePin, PinMode.Output);
 
       Console.CancelKeyPress += delegate {
         controller.Write (redPin, PinValue.High);
@@ -29,17 +35,8 @@ namespace PresenceConsoleApp {
         controller.Write (bluePin, PinValue.High);
       };
 
-      try {
-        var authProvider = new DeviceCodeAuthProvider (appId, tenantId, scopes);
-        var accessToken = await authProvider.GetAccessToken ();
-
-        GraphHelper.Initialize (authProvider);
-
-        controller.OpenPin (redPin, PinMode.Output);
-        controller.OpenPin (greenPin, PinMode.Output);
-        controller.OpenPin (bluePin, PinMode.Output);
-
-        while (true) {
+      while (true) {
+        try {
           var presence = await GraphHelper.GetMyPresenceAsync ();
           var pinFlags = GetPinFlagsFrom (presence.Activity);
           Console.WriteLine ($"{DateTime.Now.ToString("s")} - {presence.Activity}");
@@ -47,9 +44,10 @@ namespace PresenceConsoleApp {
           controller.Write (greenPin, pinFlags.turnOnGreenPin ? PinValue.Low : PinValue.High);
           controller.Write (bluePin, pinFlags.turnOnBluePin ? PinValue.Low : PinValue.High);
           Thread.Sleep (10000);
+
+        } catch (Exception e) {
+          Console.WriteLine (e);
         }
-      } catch (Exception e) {
-        Console.WriteLine (e);
       }
     }
 
@@ -61,7 +59,6 @@ namespace PresenceConsoleApp {
       // Check for required settings
       if (string.IsNullOrEmpty (appConfig["appId"]) ||
         string.IsNullOrEmpty (appConfig["tenantId"]) ||
-        //string.IsNullOrEmpty(appConfig["clientSecret"]) ||
         string.IsNullOrEmpty (appConfig["scopes"])) {
         return null;
       }
@@ -72,12 +69,12 @@ namespace PresenceConsoleApp {
     static (bool turnOnRedPin, bool turnOnGreenPin, bool turnOnBluePin) GetPinFlagsFrom (string presenceActivity) {
       switch (presenceActivity) {
         case "Available":
+        case "InAMeeting":
           return (false, true, false); //green
         case "InACall":
         case "InAConferenceCall":
         case "Busy":
         case "DoNotDisturb":
-        case "InAMeeting":
         case "Presenting":
         case "UrgentInterruptionsOnly":
           return (true, false, false); // red
