@@ -8,7 +8,7 @@ namespace PresenceConsoleApp
 {
     class Program
     {
-        static void Main(string[] args)
+        static async Task Main(string[] args)
         {            
             var appConfig = LoadAppSettings();
 
@@ -19,7 +19,7 @@ namespace PresenceConsoleApp
             }
 
             var app = new PresenceConsoleApp(appConfig);
-            app.Run();           
+            await app.Run();
         }
 
         static IConfigurationRoot LoadAppSettings()

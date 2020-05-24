@@ -5,25 +5,23 @@ using System.Threading;
 public class LightActions
 {
     private GpioController controller;
-    private readonly CancellationToken cancellationToken;
     private readonly int redPin;
     private readonly int greenPin;
     private readonly int bluePin;
 
-    public LightActions(GpioController controller, CancellationToken cancellationToken, int redPin, int greenPin, int bluePin)
+    public LightActions(GpioController controller, int redPin, int greenPin, int bluePin)
     {
-        this.controller = controller;
-        this.cancellationToken = cancellationToken;
+        this.controller = controller;        
         this.redPin = redPin;
         this.greenPin = greenPin;
         this.bluePin = bluePin;
     }
 
-    public Action RedLightBlinkerAction
+    public Action<CancellationToken> RedLightBlinkerAction
     {
         get
         {
-            return () =>
+            return (CancellationToken cancellationToken) =>
                         {
                             controller.Write(greenPin, PinValue.High);
                             controller.Write(bluePin, PinValue.High);
@@ -44,11 +42,11 @@ public class LightActions
         }
     }
 
-    public Action GreenLightOnAction
+    public Action<CancellationToken> GreenLightOnAction
     {
         get
         {
-            return () =>
+            return (CancellationToken cancellationToken) =>
             {
                 controller.Write(greenPin, PinValue.Low);
                 controller.Write(bluePin, PinValue.High);
@@ -57,11 +55,11 @@ public class LightActions
         }
     }
 
-    public Action YellowLightOnAction
+    public Action<CancellationToken> YellowLightOnAction
     {
         get
         {
-            return () =>
+            return (CancellationToken cancellationToken) =>
             {
                 controller.Write(greenPin, PinValue.Low);
                 controller.Write(bluePin, PinValue.High);
@@ -70,11 +68,11 @@ public class LightActions
         }
     }
 
-    public Action LightsOffAction
+    public Action<CancellationToken> LightsOffAction
     {
         get
         {
-            return () =>
+            return (CancellationToken cancellationToken) =>
             {
                 controller.Write(greenPin, PinValue.High);
                 controller.Write(bluePin, PinValue.High);
