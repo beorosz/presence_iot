@@ -1,11 +1,10 @@
 ﻿using System;
-using System.Device.Gpio;
-using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
 
-namespace PresenceConsoleApp {
-  class Program {
+namespace PresenceConsoleApp
+{
+    class Program {
     static async Task Main (string[] args) {
       var appConfig = LoadAppSettings ();
 

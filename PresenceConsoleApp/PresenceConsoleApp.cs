@@ -44,20 +44,21 @@ namespace PresenceConsoleApp {
       while (true) {
         try {
           var presence = await GraphHelper.GetMyPresenceAsync ();
-          Console.WriteLine ($"{DateTime.Now.ToString("s")} - {presence.Activity}");
+          Console.WriteLine ($"{DateTime.Now.ToString("s")} - {presence?.Activity}");
 
           tokenSource.Cancel ();
           try {
             await currentTask;
           } catch (System.Exception) { }
 
-          var action = this.GetLightActionBy (presence.Activity);
+          var action = this.GetLightActionBy (presence?.Activity);
           tokenSource = new CancellationTokenSource ();
           currentTask = Task.Run (() => action (tokenSource.Token), tokenSource.Token);
 
           Thread.Sleep (10000);
         } catch (Exception e) {
           Console.WriteLine (e);
+          Console.WriteLine (e.InnerException);
         }
       }
     }
@@ -73,7 +74,7 @@ namespace PresenceConsoleApp {
         case "DoNotDisturb":
         case "Presenting":
         case "UrgentInterruptionsOnly":
-          return lightActions.RedLightBlinkerAction;
+          return lightActions.RedLightBlinksAction;
         case "Away":
         case "BeRightBack":
         case "Inactive":
@@ -82,8 +83,9 @@ namespace PresenceConsoleApp {
         case "Offline":
         case "OffWork":
         case "OutOfOffice":
-        default:
           return lightActions.LightsOffAction;
+        default:
+          return lightActions.AllLightsBlinkInSequenceAction;
       }
     }
   }
