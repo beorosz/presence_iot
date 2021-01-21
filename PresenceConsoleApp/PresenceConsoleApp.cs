@@ -64,6 +64,12 @@ namespace PresenceConsoleApp {
     }
 
     Action<CancellationToken> GetLightActionBy (string presenceActivity) {
+      var date = DateTime.Now;
+      if(date.Hour >= 20 || date.Hour < 8)
+      {
+        return lightActions.LightsOffAction;
+      }
+      
       switch (presenceActivity) {
         case "Available":
         case "InAMeeting":
@@ -85,7 +91,7 @@ namespace PresenceConsoleApp {
         case "OutOfOffice":
           return lightActions.LightsOffAction;
         default:
-          return lightActions.AllLightsBlinkInSequenceAction;
+          return lightActions.LightsOffAction;
       }
     }
   }
