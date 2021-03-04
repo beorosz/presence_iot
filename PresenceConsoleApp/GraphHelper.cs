@@ -48,7 +48,7 @@ namespace PresenceConsoleApp
             try
             {
                 // GET /me/presence
-                var graphApiVersion = "beta";
+                var graphApiVersion = "v9.0";
                 var endpoint = $"https://graph.microsoft.com/{graphApiVersion}";
                 var action = "/me/presence";
                 using var client = new HttpClient();
