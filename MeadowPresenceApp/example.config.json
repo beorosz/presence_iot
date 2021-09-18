@@ -1,0 +1,7 @@
+{
+  "wifi_ssid": "ssid",
+  "wifi_password": "password",
+  "appId": "app_id_guid",
+  "tenantId": "tenant_id_guid",
+  "scopes": "User.Read Presence.Read openid offline_access"
+}
