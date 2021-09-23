@@ -11,13 +11,11 @@ namespace MeadowPresenceApp
         {
             if (args.Length > 0 && args[0] == "--exitOnDebug") return;
 
-            Console.WriteLine("Starting app...");
-
             var configuration = GetConfigurationRoot();
             var app = new MeadowApp(configuration);
-
+            
             app.Initialize();
-            app.RunMainLoop();
+            await app.RunMainLoop();
 
             Thread.Sleep(Timeout.Infinite);
         }

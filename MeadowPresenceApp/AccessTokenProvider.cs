@@ -1,4 +1,5 @@
 ﻿using LitJson;
+using MeadowPresenceApp.Communication;
 using MeadowPresenceApp.Model;
 using Microsoft.Extensions.Configuration;
 using System;
@@ -12,37 +13,51 @@ namespace MeadowPresenceApp
     public interface IAccessTokenProvider
     {
         Task<string> GetAccessToken();
+        Task RefreshAccessToken();
     }
 
-    public class AccessTokenProvider : IAccessTokenProvider
+    public class AccessTokenProvider : HttpCommunicationBase, IAccessTokenProvider
     {
         private readonly IConfiguration configuration;
-        private string accessToken;
+        private readonly ILogger logger;
+        private readonly string tokenRequestUri;
+        private readonly string deviceCodeRequestUri;
 
-        public Action<string> NotificationCallback { get; }
-        public Action<string> DisplayDeviceCodeCallback { get; }
+        private string cachedAccessToken;
+        private string cachedRefreshToken;
 
-        public AccessTokenProvider(IConfiguration configuration, Action<string> notificationCallback, Action<string> displayDeviceCodeCallback)
+        public AccessTokenProvider(IConfiguration configuration, ILogger logger)
         {
             this.configuration = configuration;
-            
-            NotificationCallback = notificationCallback;
-            DisplayDeviceCodeCallback = displayDeviceCodeCallback;
+            this.logger = logger;
+            var tenantId = configuration["tenantId"];
+            tokenRequestUri = $"https://login.microsoftonline.com/{tenantId}/oauth2/v2.0/token";
+            deviceCodeRequestUri = $"https://login.microsoftonline.com/{tenantId}/oauth2/v2.0/devicecode";
 
-            accessToken = string.Empty;
+            cachedAccessToken = cachedRefreshToken = string.Empty;
         }
 
         public async Task<string> GetAccessToken()
         {
-            if (string.IsNullOrEmpty(accessToken))
+            if (string.IsNullOrEmpty(cachedAccessToken))
             {
+                logger.Log(Category.Information, "Querying token");
                 var deviceCodeResponse = await GetDeviceCodeResponse();
-                var accessTokenResponse = await GetAccessToken(deviceCodeResponse.interval, deviceCodeResponse.device_code);
+                var accessTokenResponse = await PollForAccessToken(deviceCodeResponse.interval, deviceCodeResponse.device_code);
 
-                accessToken = accessTokenResponse.access_token;
+                cachedAccessToken = accessTokenResponse.access_token;
+                cachedRefreshToken = accessTokenResponse.refresh_token;
             }
 
-            return accessToken;
+            return cachedAccessToken;
+        }
+
+        public async Task RefreshAccessToken()
+        {
+            var refreshTokenResponse = await RefreshAccessTokenInternal();
+
+            cachedAccessToken = refreshTokenResponse.access_token;
+            cachedRefreshToken = refreshTokenResponse.refresh_token;
         }
 
         private async Task<GetDeviceCodeResponse> GetDeviceCodeResponse()
@@ -50,77 +65,55 @@ namespace MeadowPresenceApp
             GetDeviceCodeResponse result = null;
 
             var appId = configuration["appId"];
-            var tenantId = configuration["tenantId"];
             var scopes = configuration["scopes"];
 
-            var requestContent = new Dictionary<string, string>();
-            requestContent.Add("client_id", appId);
-            requestContent.Add("scope", scopes);
-            var requestUri = $"https://login.microsoftonline.com/{tenantId}/oauth2/v2.0/devicecode";
+            var deviceCodeRequestContentDictionary = GetDeviceCodeRequestContentDictionary(appId, scopes);
+            var deviceCodeRequestContent = new FormUrlEncodedContent(deviceCodeRequestContentDictionary);
 
             try
             {
-                NotificationCallback("Get device code");
-                using (HttpClient client = new HttpClient())
-                {
-                    client.Timeout = new TimeSpan(0, 0, 30);
-                    var request = new HttpRequestMessage(HttpMethod.Post, requestUri)
-                    {
-                        Content = new FormUrlEncodedContent(requestContent)
-                    };
-                    var httpResponse = await client.SendAsync(request);                    
-                    httpResponse.EnsureSuccessStatusCode();
+                logger.Log(Category.Information, "Getting dev.code");
+                var httpResponse = await HttpSend(HttpMethod.Post, deviceCodeRequestUri, deviceCodeRequestContent);
+                httpResponse.EnsureSuccessStatusCode();
 
-                    var responseString = await httpResponse.Content.ReadAsStringAsync();
-                    result = JsonMapper.ToObject<GetDeviceCodeResponse>(responseString);
-                    DisplayDeviceCodeCallback($"{result.user_code}");
-                }
+                var responseString = await httpResponse.Content.ReadAsStringAsync();
+                result = JsonMapper.ToObject<GetDeviceCodeResponse>(responseString);
+                logger.Log(Category.DeviceCode, $"{result.user_code}");
             }
             catch (Exception e)
             {
-                NotificationCallback(e.Message);
-                throw;
+                logger.Log(Category.Error, e.Message);
             }
 
             return result;
         }
 
-        private async Task<GetAccessTokenResponse> GetAccessToken(int pollingInterval, string deviceCode)
+        private async Task<GetAccessTokenResponse> PollForAccessToken(int pollingInterval, string deviceCode)
         {
             GetAccessTokenResponse result = new GetAccessTokenResponse();
 
-            var appId = configuration["appId"];
-            var tenantId = configuration["tenantId"];
-
             var continuePolling = true;
             var pollingIntervalInSecs = pollingInterval;
+            var appId = configuration["appId"];
 
-            var requestContent = new Dictionary<string, string>();
-            requestContent.Add("grant_type", "urn:ietf:params:oauth:grant-type:device_code");
-            requestContent.Add("client_id", appId);
-            requestContent.Add("device_code", deviceCode);
-            var requestUri = $"https://login.microsoftonline.com/{tenantId}/oauth2/v2.0/token";
+            var accessTokenRequestContentDictionary = GetAccessTokenRequestContentDictionary(appId, deviceCode);
+            var accessTokenRequestContent = new FormUrlEncodedContent(accessTokenRequestContentDictionary);
 
-            while (continuePolling)
+            try
             {
-                NotificationCallback("Waiting for auth");
-                Thread.Sleep(pollingIntervalInSecs * 1000);
-
-                using (var client = new HttpClient())
+                while (continuePolling)
                 {
-                    client.Timeout = new TimeSpan(0, 0, 30);
-                    var request = new HttpRequestMessage(HttpMethod.Post, requestUri)
-                    {
-                        Content = new FormUrlEncodedContent(requestContent)
-                    };
-                    var httpResponse = await client.SendAsync(request);
+                    logger.Log(Category.Information, "Waiting for auth");
+                    Thread.Sleep(pollingIntervalInSecs * 1000);
+
+                    var httpResponse = await HttpSend(HttpMethod.Post, tokenRequestUri, accessTokenRequestContent);
                     var responseString = await httpResponse.Content.ReadAsStringAsync();
 
                     if (httpResponse.StatusCode == System.Net.HttpStatusCode.OK)
                     {
                         continuePolling = false;
                         result = JsonMapper.ToObject<GetAccessTokenResponse>(responseString);
-                        NotificationCallback($"Token acquired");
+                        logger.Log(Category.Information, "Token acquired");
                     }
                     else if (httpResponse.StatusCode == System.Net.HttpStatusCode.BadRequest)
                     {
@@ -131,14 +124,78 @@ namespace MeadowPresenceApp
                         }
                         else
                         {
-                            NotificationCallback(errorResponse.error);
-                            throw new AuthorizationException(errorResponse.error);
+                            logger.Log(Category.Error, errorResponse.error_description);
+                            continuePolling = false;
                         }
                     }
                 }
             }
+            catch (Exception e)
+            {
+                logger.Log(Category.Error, e.Message);
+            }
 
             return result;
+        }
+
+        private async Task<GetAccessTokenResponse> RefreshAccessTokenInternal()
+        {
+            GetAccessTokenResponse result = new GetAccessTokenResponse();
+
+            try
+            {
+                var appId = configuration["appId"];
+                var refreshTokenRequestContent = GetRefreshTokenRequestContentDictionary(appId, cachedRefreshToken);
+
+                var httpResponse = await HttpSend(HttpMethod.Post, tokenRequestUri, new FormUrlEncodedContent(refreshTokenRequestContent));
+                var responseString = await httpResponse.Content.ReadAsStringAsync();
+
+                if (httpResponse.StatusCode == System.Net.HttpStatusCode.OK)
+                {
+                    result = JsonMapper.ToObject<GetAccessTokenResponse>(responseString);
+                    logger.Log(Category.Information, "Token refreshed");
+                }
+                else if (httpResponse.StatusCode == System.Net.HttpStatusCode.BadRequest)
+                {
+                    var errorResponse = JsonMapper.ToObject<BadRequestResponse>(responseString);
+                    logger.Log(Category.Error, errorResponse.error);
+                }
+            }
+            catch (Exception e)
+            {
+                logger.Log(Category.Error, e.Message);
+            }
+
+            return result;
+        }
+
+        private static Dictionary<string, string> GetDeviceCodeRequestContentDictionary(string appId, string scopes)
+        {
+            var deviceCodeRequestContent = new Dictionary<string, string>();
+            deviceCodeRequestContent.Add("client_id", appId);
+            deviceCodeRequestContent.Add("scope", scopes);
+
+            return deviceCodeRequestContent;
+        }
+
+        private static Dictionary<string, string> GetAccessTokenRequestContentDictionary(string appId, string deviceCode)
+        {
+            var accessTokenRequestContent = new Dictionary<string, string>();
+            accessTokenRequestContent.Add("grant_type", "urn:ietf:params:oauth:grant-type:device_code");
+            accessTokenRequestContent.Add("client_id", appId);
+            accessTokenRequestContent.Add("device_code", deviceCode);
+
+            return accessTokenRequestContent;
+        }
+
+        private static Dictionary<string, string> GetRefreshTokenRequestContentDictionary(string appId, string refreshToken)
+        {
+            var accessTokenRequestContent = new Dictionary<string, string>();
+            accessTokenRequestContent.Add("grant_type", "refresh_token");
+            accessTokenRequestContent.Add("client_id", appId);
+            accessTokenRequestContent.Add("refresh_token", refreshToken);
+
+            return accessTokenRequestContent;
         }
     }
 }

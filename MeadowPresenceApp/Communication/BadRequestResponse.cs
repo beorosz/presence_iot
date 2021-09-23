@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace MeadowPresenceApp.Model
+namespace MeadowPresenceApp.Communication
 {
     /// <example>
     /// {
@@ -28,7 +28,7 @@ namespace MeadowPresenceApp.Model
         public string trace_id { get; set; }
 
         public string correlation_id { get; set; }
-        
-        public string error_uri { get; set; }        
+
+        public string error_uri { get; set; }
     }
 }

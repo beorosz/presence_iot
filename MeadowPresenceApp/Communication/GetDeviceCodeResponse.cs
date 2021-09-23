@@ -1,4 +1,4 @@
-﻿namespace MeadowPresenceApp.Model
+﻿namespace MeadowPresenceApp.Communication
 {
     /// <example>
     /// {
@@ -17,7 +17,7 @@
         public string device_code { get; set; }
 
         public string verification_uri { get; set; }
-        
+
         public int expires_in { get; set; }
 
         public int interval { get; set; }

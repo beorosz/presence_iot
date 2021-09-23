@@ -1,8 +1,8 @@
 ﻿using LitJson;
+using MeadowPresenceApp.Communication;
 using MeadowPresenceApp.Model;
 using System;
 using System.Net.Http;
-using System.Net.Http.Headers;
 using System.Threading.Tasks;
 
 namespace MeadowPresenceApp
@@ -12,40 +12,63 @@ namespace MeadowPresenceApp
         Task<PresenceResponse> GetPresence();
     }
 
-    public class PresenceProvider : IPresenceProvider
+    public class PresenceProvider : HttpCommunicationBase, IPresenceProvider
     {
         private readonly IAccessTokenProvider accessTokenProvider;
+        private readonly ILogger logger;
+        private readonly string getPresenceUri;
 
-        public PresenceProvider(IAccessTokenProvider accessTokenProvider)
+        public PresenceProvider(IAccessTokenProvider accessTokenProvider, ILogger logger)
         {
             this.accessTokenProvider = accessTokenProvider;
+            this.logger = logger;
+            getPresenceUri = "https://graph.microsoft.com/v1.0/me/presence";
         }
 
         public async Task<PresenceResponse> GetPresence()
         {
             PresenceResponse result = new PresenceResponse();
+            var retryPresenceRequest = true;
 
-            var accessToken = await accessTokenProvider.GetAccessToken();
-
-            try
+            while (retryPresenceRequest)
             {
-                using (HttpClient client = new HttpClient())
+                try
                 {
-                    client.Timeout = new TimeSpan(0, 0, 30);
-                    var request = new HttpRequestMessage(HttpMethod.Get, "https://graph.microsoft.com/v1.0/me/presence");
-                    request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-                    request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-                    var httpResponse = await client.SendAsync(request);
-                    httpResponse.EnsureSuccessStatusCode();
+                    var accessToken = await accessTokenProvider.GetAccessToken();
 
+                    var httpResponse = await HttpSendWithBearerAccessToken(HttpMethod.Get, getPresenceUri, accessToken);
                     var responseString = await httpResponse.Content.ReadAsStringAsync();
-                    result = JsonMapper.ToObject<PresenceResponse>(responseString);
+                    
+                    if (httpResponse.StatusCode == System.Net.HttpStatusCode.OK)
+                    {
+                        result = JsonMapper.ToObject<PresenceResponse>(responseString);
+                        retryPresenceRequest = false;
+                    }
+                    else if (httpResponse.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                    {
+                        var errorResponse = UnauthorizedResponseJsonReader.ToObject(responseString);
+                        if (errorResponse.Error.Code == "InvalidAuthenticationToken")
+                        {
+                            retryPresenceRequest = true;
+                            logger.Log(Category.Information, "Refreshing token");
+                            await accessTokenProvider.RefreshAccessToken();
+                        }
+                        else
+                        {
+                            retryPresenceRequest = false;
+                            logger.Log(Category.Error, "Refresh error");
+                        }
+                    }
+                    else
+                    {
+                        retryPresenceRequest = false;
+                        logger.Log(Category.Error, $"Unexpected error: {httpResponse.StatusCode}");
+                    }
                 }
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine(e.Message);
-                throw;
+                catch (Exception e)
+                {
+                    logger.Log(Category.Error, e.Message);                    
+                }
             }
 
             return result;

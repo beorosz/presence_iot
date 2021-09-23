@@ -1,4 +1,4 @@
-﻿namespace MeadowPresenceApp.Model
+﻿namespace MeadowPresenceApp.Communication
 {
     /// <example>
     /// {

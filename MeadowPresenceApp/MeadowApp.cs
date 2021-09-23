@@ -7,28 +7,39 @@ using Meadow.Foundation.Leds;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
+using MeadowPresenceApp.Hardware;
+using Meadow.Gateway.WiFi;
+using MeadowPresenceApp.Communication;
+using MeadowPresenceApp.Model;
 
 namespace MeadowPresenceApp
 {
     public class MeadowApp : App<F7Micro, MeadowApp>
     {
         private readonly IConfiguration configuration;
-        private readonly IPresenceProvider presenceProvider;
+        private readonly ILogger logger;
+        private IPresenceProvider presenceProvider;
+        private NtpClient ntpClient;
+
         private IRgbLedActions rgbLedActions;
-        private RgbLed rgbLed;
-        private I2cCharacterDisplay lcd1602;
+        private HardwareElements hardwareElements;
 
         public MeadowApp(IConfiguration configuration)
         {
             this.configuration = configuration;
-            var tokenProvider = new AccessTokenProvider(configuration, AccessTokenProviderNotificationCallback, AccessTokenProviderDeviceCodeCallback);
-            presenceProvider = new PresenceProvider(tokenProvider);
+            hardwareElements = InitializeHardware();
+            logger = new Logger(hardwareElements);
+            rgbLedActions = new RgbLedActions(hardwareElements.RgbLed);
         }
 
         public void Initialize()
         {
-            InitializeHardware();
-            rgbLedActions = new RgbLedActions(rgbLed);
+            var tokenProvider = new AccessTokenProvider(configuration, logger);
+            presenceProvider = new PresenceProvider(tokenProvider, logger);
+
+            ntpClient = new NtpClient(configuration);
+            var currentTime = ntpClient.GetUtcNetworkTime();
+            Device.SetClock(currentTime);
         }
 
         public async Task RunMainLoop()
@@ -39,8 +50,11 @@ namespace MeadowPresenceApp
             {
                 try
                 {
+                    logger.Log(Category.Information, "Getting presence");
                     var presence = await presenceProvider.GetPresence();
-                    lcd1602.WriteLine($"{presence.activity}", 1);
+
+                    var time = DateTime.Now.ToString("HH:mm");
+                    logger.Log(Category.Presence, $"{time} {presence.activity}");
 
                     var ledAction = GetLedActionBy(presence.activity);
                     ledAction();
@@ -49,35 +63,41 @@ namespace MeadowPresenceApp
                 }
                 catch (Exception e)
                 {
-                    Console.WriteLine(e);
-                    Console.WriteLine(e.InnerException);
+                    logger.Log(Category.Error, e.Message);
                 }
             }
         }
 
-        private void InitializeHardware()
+        private HardwareElements InitializeHardware()
         {
             byte LCD1602I2CAddress = 0x27;
 
-            new WifiAdapter(configuration).Init();
-
-            rgbLed = new RgbLed(Device.CreateDigitalOutputPort(Device.Pins.D02),
+            var rgbLed = new RgbLed(Device.CreateDigitalOutputPort(Device.Pins.D02),
                 Device.CreateDigitalOutputPort(Device.Pins.D03),
                 Device.CreateDigitalOutputPort(Device.Pins.D04), Meadow.Peripherals.Leds.IRgbLed.CommonType.CommonAnode);
 
             rgbLed.Stop();
 
             II2cBus i2cBus = Device.CreateI2cBus(I2cBusSpeed.Standard);
-            lcd1602 = new I2cCharacterDisplay(i2cBus, LCD1602I2CAddress, 2, 16);
+            var lcd1602 = new I2cCharacterDisplay(i2cBus, LCD1602I2CAddress, 2, 16);
+
+            Device.InitWiFiAdapter().Wait();
+            if (Device.WiFiAdapter.Connect(configuration["wifi_ssid"], configuration["wifi_password"])
+                .Result.ConnectionStatus != ConnectionStatus.Success)
+            {
+                throw new Exception("Cannot connect to network, application halted.");
+            }
+
+            return new HardwareElements(rgbLed, lcd1602);
         }
 
         private Action GetLedActionBy(string presenceActivity)
         {
             var date = DateTime.Now;
-            //if (date.Hour >= 20 || date.Hour < 8)
-            //{
-            //    return lightActions.LightsOffAction;
-            //}
+            if (date.Hour >= 20 || date.Hour < 8)
+            {
+                return rgbLedActions.LightsOff;
+            }
 
             switch (presenceActivity)
             {
@@ -102,16 +122,6 @@ namespace MeadowPresenceApp
                 default:
                     return rgbLedActions.LightsOff;
             }
-        }
-
-        private void AccessTokenProviderNotificationCallback(string message)
-        {
-            lcd1602.WriteLine(message, 0);
-        }
-
-        private void AccessTokenProviderDeviceCodeCallback(string message)
-        {
-            lcd1602.WriteLine(message, 1);
         }
     }
 }
