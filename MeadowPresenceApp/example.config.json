@@ -4,5 +4,6 @@
   "ntp_server": "pool.ntp.org",
   "appId": "app_id_guid",
   "tenantId": "tenant_id_guid",
-  "scopes": "User.Read Presence.Read openid offline_access"
+  "scopes": "User.Read Presence.Read openid offline_access",
+  "DebugLogEnabled": "true"
 }

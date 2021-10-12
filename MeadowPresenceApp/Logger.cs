@@ -1,55 +1,72 @@
 ﻿using MeadowPresenceApp.Hardware;
 using MeadowPresenceApp.Model;
+using Microsoft.Extensions.Configuration;
 using System;
+using System.Collections.Generic;
 
 namespace MeadowPresenceApp
 {
     public interface ILogger
     {
-        void Log(Category category, string message);
+        void Log(LogMessage message);
+        void LogDeviceCode(string deviceCode);
+        void LogPresence(string presence);
     }
     public class Logger : ILogger
     {
         private readonly HardwareElements hardwareElements;
+        private readonly IConfiguration configuration;
 
-        public Logger(HardwareElements hardwareElements)
+        private Queue<LogMessage> logMessages;
+        private int logMessageLimit;
+
+        private string flowInfoMessage;
+
+        public Logger(HardwareElements hardwareElements, IConfiguration configuration)
         {
             this.hardwareElements = hardwareElements;
+            this.configuration = configuration;
+            InitMessageStore();
         }
 
-        public void Log(Category category, string message)
+        public void Log(LogMessage logMessage)
         {
-            switch(category)
+            if (logMessage.Category == Category.Debug && bool.Parse(configuration["DebugLogEnabled"]) == true)
             {
-                case Category.Information:
-                    LogInformation(message);
-                    break;
-                case Category.Error:
-                    LogError(message);
-                    break;
-                case Category.DeviceCode:
-                case Category.Presence:
-                    LogImportantInfo(message);
-                    break;
+                Console.WriteLine($"{DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")} {logMessage.Message}");
+
+                return;
             }
+            StoreLogMessage(logMessage);
+
+            hardwareElements.TftDisplay.Render(logMessages, flowInfoMessage);
         }
 
-        private void LogImportantInfo(string message)
+        public void LogDeviceCode(string deviceCode)
         {
-            hardwareElements.Lcd1602.WriteLine(message, 1);
-            Console.WriteLine(message);
+            flowInfoMessage = deviceCode;
+            hardwareElements.TftDisplay.Render(logMessages, flowInfoMessage);
         }
 
-        private void LogError(string message)
+        public void LogPresence(string presence)
         {
-            hardwareElements.Lcd1602.WriteLine(message, 0);
-            Console.WriteLine(message);
+            flowInfoMessage = presence;
+            hardwareElements.TftDisplay.Render(logMessages, flowInfoMessage);
         }
 
-        private void LogInformation(string message)
+        private void InitMessageStore()
         {
-            hardwareElements.Lcd1602.WriteLine(message, 0);
-            Console.WriteLine(message);
+            logMessages = new Queue<LogMessage>();
+            logMessageLimit = 6;
+            flowInfoMessage = string.Empty;
+        }
+        private void StoreLogMessage(LogMessage message)
+        {
+            logMessages.Enqueue(message);
+            if (logMessages.Count > logMessageLimit)
+            {
+                logMessages.Dequeue();
+            }
         }
     }
 }

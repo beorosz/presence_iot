@@ -1,8 +1,6 @@
 ﻿using System;
 using Meadow;
 using Meadow.Devices;
-using Meadow.Foundation.Displays.Lcd;
-using Meadow.Hardware;
 using Meadow.Foundation.Leds;
 using System.Threading;
 using System.Threading.Tasks;
@@ -28,7 +26,7 @@ namespace MeadowPresenceApp
         {
             this.configuration = configuration;
             hardwareElements = InitializeHardware();
-            logger = new Logger(hardwareElements);
+            logger = new Logger(hardwareElements, configuration);
             rgbLedActions = new RgbLedActions(hardwareElements.RgbLed);
         }
 
@@ -40,6 +38,9 @@ namespace MeadowPresenceApp
             ntpClient = new NtpClient(configuration);
             var currentTime = ntpClient.GetUtcNetworkTime();
             Device.SetClock(currentTime);
+
+            MeadowOS.WatchdogEnable(10000);
+            StartPettingWatchdog(9000);
         }
 
         public async Task RunMainLoop()
@@ -50,36 +51,37 @@ namespace MeadowPresenceApp
             {
                 try
                 {
-                    logger.Log(Category.Information, "Getting presence");
+                    logger.Log(new LogMessage(Category.Debug, "Getting presence"));
                     var presence = await presenceProvider.GetPresence();
+                    logger.Log(new LogMessage(Category.Debug, "Presence retrieved"));
 
-                    var time = DateTime.Now.ToString("HH:mm");
-                    logger.Log(Category.Presence, $"{time} {presence.activity}");
+                    logger.LogPresence(presence.activity);
 
                     var ledAction = GetLedActionBy(presence.activity);
                     ledAction();
 
+                    logger.Log(new LogMessage(Category.Debug, "Waiting for 10 seconds"));
                     Thread.Sleep(10000);
                 }
                 catch (Exception e)
                 {
-                    logger.Log(Category.Error, e.Message);
+                    logger.Log(new LogMessage(Category.Error, e.Message));
+                    logger.Log(new LogMessage(Category.Debug, e.Message));
+                    logger.Log(new LogMessage(Category.Debug, e.StackTrace));
                 }
             }
         }
 
         private HardwareElements InitializeHardware()
         {
-            byte LCD1602I2CAddress = 0x27;
-
-            var rgbLed = new RgbLed(Device.CreateDigitalOutputPort(Device.Pins.D02),
-                Device.CreateDigitalOutputPort(Device.Pins.D03),
-                Device.CreateDigitalOutputPort(Device.Pins.D04), Meadow.Peripherals.Leds.IRgbLed.CommonType.CommonAnode);
+            var redPin = Device.CreateDigitalOutputPort(Device.Pins.D02, true);
+            var greenPin = Device.CreateDigitalOutputPort(Device.Pins.D03, true);
+            var bluePin = Device.CreateDigitalOutputPort(Device.Pins.D04, true);
+            var rgbLed = new RgbLed(redPin, greenPin, bluePin, Meadow.Peripherals.Leds.IRgbLed.CommonType.CommonAnode);
 
             rgbLed.Stop();
 
-            II2cBus i2cBus = Device.CreateI2cBus(I2cBusSpeed.Standard);
-            var lcd1602 = new I2cCharacterDisplay(i2cBus, LCD1602I2CAddress, 2, 16);
+            var tftDisplay = TftDisplay.Initialize();
 
             Device.InitWiFiAdapter().Wait();
             if (Device.WiFiAdapter.Connect(configuration["wifi_ssid"], configuration["wifi_password"])
@@ -88,7 +90,7 @@ namespace MeadowPresenceApp
                 throw new Exception("Cannot connect to network, application halted.");
             }
 
-            return new HardwareElements(rgbLed, lcd1602);
+            return new HardwareElements(rgbLed, null, tftDisplay);
         }
 
         private Action GetLedActionBy(string presenceActivity)
@@ -122,6 +124,20 @@ namespace MeadowPresenceApp
                 default:
                     return rgbLedActions.LightsOff;
             }
+        }
+
+        private void StartPettingWatchdog(int pettingInterval)
+        {
+            MeadowOS.WatchdogReset();
+            Thread t = new Thread(() =>
+            {
+                while (true)
+                {
+                    Thread.Sleep(pettingInterval);
+                    MeadowOS.WatchdogReset();
+                }
+            });
+            t.Start();
         }
     }
 }

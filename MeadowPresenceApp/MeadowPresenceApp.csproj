@@ -10,6 +10,7 @@
     <PackageReference Include="LitJson" Version="0.17.0" />
     <PackageReference Include="Meadow.F7" Version="0.27.1" />
     <PackageReference Include="Meadow.Foundation.Displays.Lcd.CharacterDisplay" Version="0.8.35" />
+    <PackageReference Include="Meadow.Foundation.Displays.TftSpi" Version="0.7.47" />
     <PackageReference Include="Microsoft.Extensions.Configuration" Version="5.0.0" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="5.0.0" />
   </ItemGroup>

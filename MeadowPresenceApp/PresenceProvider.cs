@@ -34,40 +34,48 @@ namespace MeadowPresenceApp
             {
                 try
                 {
+                    logger.Log(new LogMessage(Category.Debug, "Getting token"));
                     var accessToken = await accessTokenProvider.GetAccessToken();
+                    logger.Log(new LogMessage(Category.Debug, "Token retrieved"));
 
                     var httpResponse = await HttpSendWithBearerAccessToken(HttpMethod.Get, getPresenceUri, accessToken);
                     var responseString = await httpResponse.Content.ReadAsStringAsync();
-                    
+                    logger.Log(new LogMessage(Category.Debug, $"{httpResponse.StatusCode} : {responseString}"));
+
                     if (httpResponse.StatusCode == System.Net.HttpStatusCode.OK)
                     {
+                        logger.Log(new LogMessage(Category.Debug, "Presence response ok"));
                         result = JsonMapper.ToObject<PresenceResponse>(responseString);
                         retryPresenceRequest = false;
                     }
                     else if (httpResponse.StatusCode == System.Net.HttpStatusCode.Unauthorized)
                     {
+                        logger.Log(new LogMessage(Category.Debug, "Presence response unauthorized"));
                         var errorResponse = UnauthorizedResponseJsonReader.ToObject(responseString);
                         if (errorResponse.Error.Code == "InvalidAuthenticationToken")
                         {
                             retryPresenceRequest = true;
-                            logger.Log(Category.Information, "Refreshing token");
+                            logger.Log(new LogMessage(Category.Information, "Refreshing token"));
                             await accessTokenProvider.RefreshAccessToken();
                         }
                         else
                         {
                             retryPresenceRequest = false;
-                            logger.Log(Category.Error, "Refresh error");
+                            logger.Log(new LogMessage(Category.Error, "Refresh error"));
                         }
                     }
                     else
                     {
                         retryPresenceRequest = false;
-                        logger.Log(Category.Error, $"Unexpected error: {httpResponse.StatusCode}");
+                        logger.Log(new LogMessage(Category.Error, $"Unexpected error: {httpResponse.StatusCode}"));
                     }
                 }
                 catch (Exception e)
                 {
-                    logger.Log(Category.Error, e.Message);                    
+                    retryPresenceRequest = false;
+                    logger.Log(new LogMessage(Category.Error, e.Message));
+                    logger.Log(new LogMessage(Category.Debug, $"{e.Message}"));
+                    logger.Log(new LogMessage(Category.Debug, $"{e.StackTrace}"));
                 }
             }
 

@@ -41,7 +41,7 @@ namespace MeadowPresenceApp
         {
             if (string.IsNullOrEmpty(cachedAccessToken))
             {
-                logger.Log(Category.Information, "Querying token");
+                logger.Log(new LogMessage(Category.Information, "Querying token"));
                 var deviceCodeResponse = await GetDeviceCodeResponse();
                 var accessTokenResponse = await PollForAccessToken(deviceCodeResponse.interval, deviceCodeResponse.device_code);
 
@@ -72,17 +72,20 @@ namespace MeadowPresenceApp
 
             try
             {
-                logger.Log(Category.Information, "Getting dev.code");
+                logger.Log(new LogMessage(Category.Information, "Getting dev.code"));
                 var httpResponse = await HttpSend(HttpMethod.Post, deviceCodeRequestUri, deviceCodeRequestContent);
-                httpResponse.EnsureSuccessStatusCode();
-
                 var responseString = await httpResponse.Content.ReadAsStringAsync();
+                logger.Log(new LogMessage(Category.Debug, $"{httpResponse.StatusCode} : {responseString}"));
+
+                httpResponse.EnsureSuccessStatusCode();
                 result = JsonMapper.ToObject<GetDeviceCodeResponse>(responseString);
-                logger.Log(Category.DeviceCode, $"{result.user_code}");
+                logger.LogDeviceCode(result.user_code);
             }
             catch (Exception e)
             {
-                logger.Log(Category.Error, e.Message);
+                logger.Log(new LogMessage(Category.Error, e.Message));
+                logger.Log(new LogMessage(Category.Debug, $"{e.Message}"));
+                logger.Log(new LogMessage(Category.Debug, $"{e.StackTrace}"));
             }
 
             return result;
@@ -101,19 +104,20 @@ namespace MeadowPresenceApp
 
             try
             {
+                logger.Log(new LogMessage(Category.Information, "Waiting for auth"));
                 while (continuePolling)
-                {
-                    logger.Log(Category.Information, "Waiting for auth");
+                {                    
                     Thread.Sleep(pollingIntervalInSecs * 1000);
 
                     var httpResponse = await HttpSend(HttpMethod.Post, tokenRequestUri, accessTokenRequestContent);
                     var responseString = await httpResponse.Content.ReadAsStringAsync();
+                    logger.Log(new LogMessage(Category.Debug, $"{httpResponse.StatusCode} : {responseString}"));
 
                     if (httpResponse.StatusCode == System.Net.HttpStatusCode.OK)
                     {
                         continuePolling = false;
                         result = JsonMapper.ToObject<GetAccessTokenResponse>(responseString);
-                        logger.Log(Category.Information, "Token acquired");
+                        logger.Log(new LogMessage(Category.Information, "Token acquired"));
                     }
                     else if (httpResponse.StatusCode == System.Net.HttpStatusCode.BadRequest)
                     {
@@ -124,7 +128,7 @@ namespace MeadowPresenceApp
                         }
                         else
                         {
-                            logger.Log(Category.Error, errorResponse.error_description);
+                            logger.Log(new LogMessage(Category.Error, errorResponse.error_description));
                             continuePolling = false;
                         }
                     }
@@ -132,7 +136,10 @@ namespace MeadowPresenceApp
             }
             catch (Exception e)
             {
-                logger.Log(Category.Error, e.Message);
+                continuePolling = false;
+                logger.Log(new LogMessage(Category.Error, e.Message));
+                logger.Log(new LogMessage(Category.Debug, $"{e.Message}"));
+                logger.Log(new LogMessage(Category.Debug, $"{e.StackTrace}"));
             }
 
             return result;
@@ -149,21 +156,24 @@ namespace MeadowPresenceApp
 
                 var httpResponse = await HttpSend(HttpMethod.Post, tokenRequestUri, new FormUrlEncodedContent(refreshTokenRequestContent));
                 var responseString = await httpResponse.Content.ReadAsStringAsync();
+                logger.Log(new LogMessage(Category.Debug, $"{httpResponse.StatusCode} : {responseString}"));
 
                 if (httpResponse.StatusCode == System.Net.HttpStatusCode.OK)
                 {
                     result = JsonMapper.ToObject<GetAccessTokenResponse>(responseString);
-                    logger.Log(Category.Information, "Token refreshed");
+                    logger.Log(new LogMessage(Category.Information, "Token refreshed"));
                 }
                 else if (httpResponse.StatusCode == System.Net.HttpStatusCode.BadRequest)
                 {
                     var errorResponse = JsonMapper.ToObject<BadRequestResponse>(responseString);
-                    logger.Log(Category.Error, errorResponse.error);
+                    logger.Log(new LogMessage(Category.Error, errorResponse.error));
                 }
             }
             catch (Exception e)
             {
-                logger.Log(Category.Error, e.Message);
+                logger.Log(new LogMessage(Category.Error, e.Message));
+                logger.Log(new LogMessage(Category.Debug, $"{e.Message}"));
+                logger.Log(new LogMessage(Category.Debug, $"{e.StackTrace}"));
             }
 
             return result;

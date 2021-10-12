@@ -1,10 +1,13 @@
-﻿namespace MeadowPresenceApp.Model
+﻿using System;
+
+namespace MeadowPresenceApp.Model
 {
+    [Flags]
     public enum Category
     {
         Information = 1,
-        Error,
-        DeviceCode,
-        Presence
+        Error = 2,
+        Flow = 4,
+        Debug = 8
     }
 }
