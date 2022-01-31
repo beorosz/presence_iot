@@ -17,10 +17,15 @@ namespace PresenceConsoleApp {
       this.appConfig = appConfig;
     }
 
+    private void AppExitHandler (object sender, EventArgs args) {
+      new Task (() => lightActions.LightsOffAction (tokenSource.Token)).RunSynchronously ();
+      tokenSource.Dispose ();
+    }
+
     public async Task Run () {
-      var appId = appConfig["appId"];
-      var scopesString = appConfig["scopes"];
-      var tenantId = appConfig["tenantId"];
+      var appId = appConfig["APPID"];
+      var scopesString = appConfig["SCOPES"];
+      var tenantId = appConfig["TENANTID"];
       var scopes = scopesString.Split (';');
       var authProvider = new DeviceCodeAuthProvider (appId, tenantId, scopes);
 
@@ -33,10 +38,8 @@ namespace PresenceConsoleApp {
 
       lightActions = new LightActions (controller, redPin, greenPin, bluePin);
 
-      Console.CancelKeyPress += delegate {
-        new Task (() => lightActions.LightsOffAction (tokenSource.Token)).RunSynchronously ();
-        tokenSource.Dispose ();
-      };
+      Console.CancelKeyPress += new ConsoleCancelEventHandler (AppExitHandler);
+      AppDomain.CurrentDomain.ProcessExit += new EventHandler (AppExitHandler);
 
       tokenSource = new CancellationTokenSource ();
       var currentTask = Task.Run (() => lightActions.LightsOffAction (tokenSource.Token), tokenSource.Token);
@@ -65,15 +68,14 @@ namespace PresenceConsoleApp {
 
     Action<CancellationToken> GetLightActionBy (string presenceActivity) {
       var date = DateTime.Now;
-      if(date.Hour >= 20 || date.Hour < 8)
-      {
+      if (date.Hour >= 20 || date.Hour < 8) {
         return lightActions.LightsOffAction;
       }
-      
+
       switch (presenceActivity) {
         case "Available":
-        case "InAMeeting":
           return lightActions.GreenLightOnAction;
+        case "InAMeeting":
         case "InACall":
         case "InAConferenceCall":
         case "Busy":

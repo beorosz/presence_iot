@@ -2,14 +2,13 @@
 using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
 
-namespace PresenceConsoleApp
-{
-    class Program {
+namespace PresenceConsoleApp {
+  class Program {
     static async Task Main (string[] args) {
       var appConfig = LoadAppSettings ();
 
       if (appConfig == null) {
-        Console.WriteLine ("Missing or invalid appsettings.json...exiting");
+        Console.WriteLine ("Missing or invalid application settings...exiting.");
         return;
       }
 
@@ -19,13 +18,13 @@ namespace PresenceConsoleApp
 
     static IConfigurationRoot LoadAppSettings () {
       var appConfig = new ConfigurationBuilder ()
-        .AddUserSecrets<Program> ()
+        .AddEnvironmentVariables ()
         .Build ();
 
       // Check for required settings
-      if (string.IsNullOrEmpty (appConfig["appId"]) ||
-        string.IsNullOrEmpty (appConfig["tenantId"]) ||
-        string.IsNullOrEmpty (appConfig["scopes"])) {
+      if (string.IsNullOrEmpty (appConfig["APPID"]) ||
+        string.IsNullOrEmpty (appConfig["TENANTID"]) ||
+        string.IsNullOrEmpty (appConfig["SCOPES"])) {
         return null;
       }
 
