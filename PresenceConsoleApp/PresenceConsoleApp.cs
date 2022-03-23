@@ -11,10 +11,18 @@ namespace PresenceConsoleApp {
 
     private CancellationTokenSource tokenSource;
 
-    int redPin = 19, greenPin = 26, bluePin = 13;
+    int redPin, greenPin, bluePin;
+    int ledOffBeforeHour = 8, ledOffAfterHour = 20;
 
     public PresenceConsoleApp (IConfigurationRoot appConfig) {
       this.appConfig = appConfig;
+
+      ledOffBeforeHour = appConfig["LED_OFF_BEFORE_HOUR"] != null ? Convert.ToInt32 (appConfig["LED_OFF_BEFORE_HOUR"]) : ledOffBeforeHour;
+      ledOffAfterHour = appConfig["LED_OFF_AFTER_HOUR"] != null ? Convert.ToInt32 (appConfig["LED_OFF_AFTER_HOUR"]) : ledOffBeforeHour;
+
+      redPin = Convert.ToInt32 (appConfig["LED_RED_PIN"]);
+      greenPin = Convert.ToInt32 (appConfig["LED_GREEN_PIN"]);
+      bluePin = Convert.ToInt32 (appConfig["LED_BLUE_PIN"]);
     }
 
     private void AppExitHandler (object sender, EventArgs args) {
@@ -68,7 +76,8 @@ namespace PresenceConsoleApp {
 
     Action<CancellationToken> GetLightActionBy (string presenceActivity) {
       var date = DateTime.Now;
-      if (date.Hour >= 20 || date.Hour < 8) {
+
+      if (date.Hour < ledOffBeforeHour || date.Hour >= ledOffAfterHour) {
         return lightActions.LightsOffAction;
       }
 

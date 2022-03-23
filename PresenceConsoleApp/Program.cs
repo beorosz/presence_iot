@@ -22,9 +22,14 @@ namespace PresenceConsoleApp {
         .Build ();
 
       // Check for required settings
-      if (string.IsNullOrEmpty (appConfig["APPID"]) ||
+      if (
+        string.IsNullOrEmpty (appConfig["APPID"]) ||
         string.IsNullOrEmpty (appConfig["TENANTID"]) ||
-        string.IsNullOrEmpty (appConfig["SCOPES"])) {
+        string.IsNullOrEmpty (appConfig["SCOPES"]) ||
+        string.IsNullOrEmpty (appConfig["LED_RED_PIN"]) ||
+        string.IsNullOrEmpty (appConfig["LED_GREEN_PIN"]) ||
+        string.IsNullOrEmpty (appConfig["LED_BLUE_PIN"])
+      ) {
         return null;
       }
 
