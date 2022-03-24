@@ -11,10 +11,13 @@ then
   exit
 fi
 
+dotnet publish -c Release
 docker login
-docker build -t teams-presence:arm .
-docker push belaorosz/teams-presence:arm
-docker manifest create belaorosz/teams-presence:latest --amend belaorosz/teams-presence:arm
+docker build -t belaorosz/teams-presence:$version .
+docker push belaorosz/teams-presence:$version
+docker manifest rm belaorosz/teams-presence:latest
+docker manifest create belaorosz/teams-presence:latest --amend belaorosz/teams-presence:$version
 docker manifest push belaorosz/teams-presence:latest
-docker manifest create belaorosz/teams-presence:$version --amend belaorosz/teams-presence:arm
+docker manifest rm belaorosz/teams-presence:$version
+docker manifest create belaorosz/teams-presence:$version --amend belaorosz/teams-presence:$version
 docker manifest push belaorosz/teams-presence:$version
