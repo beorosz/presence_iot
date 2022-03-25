@@ -57,11 +57,12 @@ namespace PresenceConsoleApp {
           var presence = await GraphHelper.GetMyPresenceAsync ();
           Console.WriteLine ($"{DateTime.Now.ToString("s")} - {presence?.Activity}");
 
-          tokenSource.Cancel ();
-          try {
-            await currentTask;
-          } catch (System.Exception) { }
+          if(!currentTask.IsCompleted) {
+            tokenSource.Cancel();
+          }
 
+          await currentTask;
+          
           var action = this.GetLightActionBy (presence?.Activity);
           tokenSource = new CancellationTokenSource ();
           currentTask = Task.Run (() => action (tokenSource.Token), tokenSource.Token);
